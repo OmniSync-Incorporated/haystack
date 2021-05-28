@@ -765,7 +765,7 @@ class ElasticsearchDocumentStore(BaseDocumentStore):
                             "terms": {key: values}
                         }
                     )
-                body["query"]["script_score"]["query"] = {"bool": {"filter": filter_clause}}
+                body["query"]["script_score"]["query"] = {"bool": {"must_not": filter_clause}}
 
             excluded_meta_data: Optional[list] = None
 
