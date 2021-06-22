@@ -728,7 +728,8 @@ class ElasticsearchDocumentStore(BaseDocumentStore):
                            filters: Optional[Dict[str, List[str]]] = None,
                            top_k: int = 10,
                            index: Optional[str] = None,
-                           return_embedding: Optional[bool] = None) -> List[Document]:
+                           return_embedding: Optional[bool] = None,
+                           exclude: Optional[bool] = False) -> List[Document]:
         """
         Find the document that is most similar to the provided `query_emb` by using a vector similarity metric.
 
@@ -765,7 +766,9 @@ class ElasticsearchDocumentStore(BaseDocumentStore):
                             "terms": {key: values}
                         }
                     )
-                body["query"]["script_score"]["query"] = {"bool": {"must_not": filter_clause}}
+                body["query"]["script_score"]["query"] = {"bool": {"filter": filter_clause}}
+                if exclude:
+                    body["query"]["script_score"]["query"] = {"bool": {"must_not": filter_clause}}
 
             excluded_meta_data: Optional[list] = None
 

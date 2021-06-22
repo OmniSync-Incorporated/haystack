@@ -538,7 +538,7 @@ class EmbeddingRetriever(BaseRetriever):
         else:
             raise NotImplementedError
 
-    def retrieve(self, query: str, filters: dict = None, top_k: Optional[int] = None, index: str = None) -> List[Document]:
+    def retrieve(self, query: str, filters: dict = None, top_k: Optional[int] = None, index: str = None, exclude: Optional[bool] = False) -> List[Document]:
         """
         Scan through documents in DocumentStore and return a small number documents
         that are most relevant to the query.
@@ -554,7 +554,7 @@ class EmbeddingRetriever(BaseRetriever):
             index = self.document_store.index
         query_emb = self.embed(texts=[query])
         documents = self.document_store.query_by_embedding(query_emb=query_emb[0], filters=filters,
-                                                           top_k=top_k, index=index)
+                                                           top_k=top_k, index=index, exclude=exclude)
         return documents
 
     def embed(self, texts: Union[List[List[str]], List[str], str]) -> List[np.ndarray]:
