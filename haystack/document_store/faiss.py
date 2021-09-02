@@ -88,6 +88,16 @@ class FAISSDocumentStore(SQLDocumentStore):
             embedding_field=embedding_field, progress_bar=progress_bar
         )
 
+        if similarity == "dot_product":
+            self.similarity = similarity
+            self.metric_type = faiss.METRIC_INNER_PRODUCT
+        elif similarity == "l2":
+            self.similarity = similarity
+            self.metric_type = faiss.METRIC_L2
+        else:
+            raise ValueError("The FAISS document store can currently only support dot_product similarity. "
+                             "Please set similarity=\"dot_product\"")
+
         self.vector_dim = vector_dim
         self.faiss_index_factory_str = faiss_index_factory_str
         self.faiss_indexes: Dict[str, faiss.swigfaiss.Index] = {}
@@ -97,17 +107,13 @@ class FAISSDocumentStore(SQLDocumentStore):
             self.faiss_indexes[index] = self._create_new_index(
                 vector_dim=self.vector_dim,
                 index_factory=faiss_index_factory_str,
-                metric_type=faiss.METRIC_INNER_PRODUCT,
+                metric_type=self.metric_type,
                 **kwargs
             )
 
         self.return_embedding = return_embedding
         self.embedding_field = embedding_field
-        if similarity == "dot_product":
-            self.similarity = similarity
-        else:
-            raise ValueError("The FAISS document store can currently only support dot_product similarity. "
-                             "Please set similarity=\"dot_product\"")
+
         self.progress_bar = progress_bar
         self.duplicate_documents = duplicate_documents
 
@@ -117,7 +123,7 @@ class FAISSDocumentStore(SQLDocumentStore):
         )
 
     def _create_new_index(self, vector_dim: int, metric_type, index_factory: str = "Flat", **kwargs):
-        if index_factory == "HNSW" and metric_type == faiss.METRIC_INNER_PRODUCT:
+        if index_factory == "HNSW":
             # faiss index factory doesn't give the same results for HNSW IP, therefore direct init.
             # defaults here are similar to DPR codebase (good accuracy, but very high RAM consumption)
             n_links = kwargs.get("n_links", 64)
@@ -419,8 +425,8 @@ class FAISSDocumentStore(SQLDocumentStore):
         #assign query score to each document
         scores_for_vector_ids: Dict[str, float] = {str(v_id): s for v_id, s in zip(vector_id_matrix[0], score_matrix[0])}
         for doc in documents:
-            doc.score = scores_for_vector_ids[doc.meta["vector_id"]]
-            doc.probability = float(expit(np.asarray(doc.score / 100)))
+            raw_score = scores_for_vector_ids[doc.meta["vector_id"]]
+            doc.score = float(expit(np.asarray(raw_score / 100)))
             if return_embedding is True:
                 doc.embedding = self.faiss_indexes[index].reconstruct(int(doc.meta["vector_id"]))
 

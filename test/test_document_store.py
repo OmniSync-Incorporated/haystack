@@ -32,7 +32,6 @@ def test_init_elastic_client():
 
 
 @pytest.mark.elasticsearch
-@pytest.mark.parametrize("document_store", ["elasticsearch", "faiss", "sql", "milvus"], indirect=True)
 def test_write_with_duplicate_doc_ids(document_store):
     documents = [
         Document(
@@ -158,7 +157,6 @@ def test_get_all_documents_generator(document_store):
 
 
 @pytest.mark.elasticsearch
-@pytest.mark.parametrize("document_store", ["elasticsearch", "sql", "faiss", "milvus"], indirect=True)
 @pytest.mark.parametrize("update_existing_documents", [True, False])
 def test_update_existing_documents(document_store, update_existing_documents):
     original_docs = [
@@ -221,7 +219,6 @@ def test_write_document_index(document_store):
 
 
 @pytest.mark.elasticsearch
-@pytest.mark.parametrize("document_store", ["elasticsearch", "faiss", "memory", "milvus"], indirect=True)
 def test_document_with_embeddings(document_store):
     documents = [
         {"text": "text1", "id": "1", "embedding": np.random.rand(768).astype(np.float32)},
@@ -240,7 +237,6 @@ def test_document_with_embeddings(document_store):
 
 
 @pytest.mark.parametrize("retriever", ["dpr", "embedding"], indirect=True)
-@pytest.mark.parametrize("document_store", ["elasticsearch", "faiss", "memory", "milvus"], indirect=True)
 def test_update_embeddings(document_store, retriever):
     documents = []
     for i in range(6):
@@ -328,7 +324,7 @@ def test_update_embeddings(document_store, retriever):
 def test_delete_all_documents(document_store_with_docs):
     assert len(document_store_with_docs.get_all_documents()) == 3
 
-    document_store_with_docs.delete_all_documents()
+    document_store_with_docs.delete_documents()
     documents = document_store_with_docs.get_all_documents()
     assert len(documents) == 0
 
@@ -430,13 +426,15 @@ def test_multilabel(document_store):
         ),
     ]
     document_store.write_labels(labels, index="haystack_test_multilabel")
-    multi_labels = document_store.get_all_labels_aggregated(index="haystack_test_multilabel")
+    multi_labels_open = document_store.get_all_labels_aggregated(index="haystack_test_multilabel", open_domain=True)
+    multi_labels = document_store.get_all_labels_aggregated(index="haystack_test_multilabel", open_domain=False)
     labels = document_store.get_all_labels(index="haystack_test_multilabel")
 
-    assert len(multi_labels) == 1
+    assert len(multi_labels_open) == 1
+    assert len(multi_labels) == 3
     assert len(labels) == 5
 
-    assert len(multi_labels[0].multiple_answers) == 3
+    assert len(multi_labels[0].multiple_answers) == 2
     assert len(multi_labels[0].multiple_answers) \
            == len(multi_labels[0].multiple_document_ids) \
            == len(multi_labels[0].multiple_offset_start_in_docs)

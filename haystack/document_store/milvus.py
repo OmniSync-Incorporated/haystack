@@ -113,9 +113,12 @@ class MilvusDocumentStore(SQLDocumentStore):
         if similarity == "dot_product":
             self.metric_type = MetricType.IP
             self.similarity = similarity
+        elif similarity == "l2":
+            self.metric_type = MetricType.L2
+            self.similarity = similarity
         else:
-            raise ValueError("The Milvus document store can currently only support dot_product similarity. "
-                             "Please set similarity=\"dot_product\"")
+            raise ValueError("The Milvus document store can currently only support dot_product and L2 similarity. "
+                             "Please set similarity=\"dot_product\" or \"l2\"")
 
         self.index_type = index_type
         self.index_param = index_param or {"nlist": 16384}
@@ -166,7 +169,7 @@ class MilvusDocumentStore(SQLDocumentStore):
         }
 
     def write_documents(self, documents: Union[List[dict], List[Document]], index: Optional[str] = None,
-                        batch_size: int = 10_000, duplicate_documents: Optional[str] = None):
+                        batch_size: int = 10_000, duplicate_documents: Optional[str] = None, index_param: Optional[Dict[str, Any]] = None):
         """
         Add new documents to the DocumentStore.
 
@@ -184,6 +187,7 @@ class MilvusDocumentStore(SQLDocumentStore):
         :return:
         """
         index = index or self.index
+        index_param = index_param or self.index_param
         duplicate_documents = duplicate_documents or self.duplicate_documents
         assert duplicate_documents in self.duplicate_documents_options, \
             f"duplicate_documents parameter must be {', '.join(self.duplicate_documents_options)}"
@@ -237,6 +241,13 @@ class MilvusDocumentStore(SQLDocumentStore):
         self.milvus_server.flush([index])
         if duplicate_documents == 'overwrite':
             self.milvus_server.compact(collection_name=index)
+
+        # Milvus index creating should happen after the creation of the collection and after the insertion
+        # of documents for maximum efficiency.
+        # See (https://github.com/milvus-io/milvus/discussions/4939#discussioncomment-809303)
+        status = self.milvus_server.create_index(index, self.index_type, index_param)
+        if status.code != Status.SUCCESS:
+            raise RuntimeError(f'Index creation on Milvus server failed: {status}')
 
     def update_embeddings(
         self,
@@ -357,8 +368,8 @@ class MilvusDocumentStore(SQLDocumentStore):
             self._populate_embeddings_to_docs(index=index, docs=documents)
 
         for doc in documents:
-            doc.score = scores_for_vector_ids[doc.meta["vector_id"]]
-            doc.probability = float(expit(np.asarray(doc.score / 100)))
+            raw_score = scores_for_vector_ids[doc.meta["vector_id"]]
+            doc.score = float(expit(np.asarray(raw_score / 100)))
 
         return documents
 
@@ -392,9 +403,13 @@ class MilvusDocumentStore(SQLDocumentStore):
         if status.code != Status.SUCCESS:
             raise RuntimeError(f'Milvus has collection check failed: {status}')
         if ok:
-            status = self.milvus_server.drop_collection(collection_name=index)
-            if status.code != Status.SUCCESS:
-                raise RuntimeError(f'Milvus drop collection failed: {status}')
+            if filters:
+                existing_docs = super().get_all_documents(filters=filters, index=index)
+                self._delete_vector_ids_from_milvus(documents=existing_docs, index=index)
+            else:
+                status = self.milvus_server.drop_collection(collection_name=index)
+                if status.code != Status.SUCCESS:
+                    raise RuntimeError(f'Milvus drop collection failed: {status}')
 
             self.milvus_server.flush([index])
             self.milvus_server.compact(collection_name=index)

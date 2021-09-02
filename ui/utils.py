@@ -24,7 +24,7 @@ def retrieve_doc(query, filters=None, top_k_reader=5, top_k_retriever=5):
         if answer:
             context = "..." + answers[i]["context"] + "..."
             meta_name = answers[i]["meta"]["name"]
-            relevance = round(answers[i]["probability"] * 100, 2)
+            relevance = round(answers[i]["score"] * 100, 2)
             document_id = answers[i]["document_id"]
             offset_start_in_doc = answers[i]["offset_start_in_doc"]
             result.append(
@@ -58,6 +58,6 @@ def feedback_doc(question, is_correct_answer, document_id, model_id, is_correct_
 
 def upload_doc(file):
     url = f"{API_ENDPOINT}/{DOC_UPLOAD}"
-    files = [("file", file)]
+    files = [("files", file)]
     response_raw = requests.post(url, files=files).json()
     return response_raw

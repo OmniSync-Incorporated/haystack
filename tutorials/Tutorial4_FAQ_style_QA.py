@@ -1,8 +1,7 @@
-from haystack import Finder
 from haystack.document_store.elasticsearch import ElasticsearchDocumentStore
 
 from haystack.retriever.dense import EmbeddingRetriever
-from haystack.utils import print_answers
+from haystack.utils import print_answers, launch_es
 import pandas as pd
 import requests
 import logging
@@ -24,17 +23,7 @@ def tutorial4_faq_style_qa():
     # - Generalizability: We can only answer questions that are similar to existing ones in FAQ
     #
     # In some use cases, a combination of extractive QA and FAQ-style can also be an interesting option.
-    LAUNCH_ELASTICSEARCH=False
-
-    if LAUNCH_ELASTICSEARCH:
-        logging.info("Starting Elasticsearch ...")
-        status = subprocess.run(
-            ['docker run -d -p 9200:9200 -e "discovery.type=single-node" elasticsearch:7.9.2'], shell=True
-        )
-        if status.returncode:
-            raise Exception("Failed to launch Elasticsearch. If you want to connect to an existing Elasticsearch instance"
-                            "then set LAUNCH_ELASTICSEARCH in the script to False.")
-        time.sleep(30)
+    launch_es()
 
     ### Init the DocumentStore
     # In contrast to Tutorial 1 (extractive QA), we:
@@ -46,7 +35,7 @@ def tutorial4_faq_style_qa():
     document_store = ElasticsearchDocumentStore(host="localhost", username="", password="",
                                                 index="document",
                                                 embedding_field="question_emb",
-                                                embedding_dim=768,
+                                                embedding_dim=384,
                                                 excluded_meta_data=["question_emb"],
                                                 similarity="cosine")
 
@@ -54,7 +43,7 @@ def tutorial4_faq_style_qa():
     # Instead of retrieving via Elasticsearch's plain BM25, we want to use vector similarity of the questions (user question vs. FAQ ones).
     # We can use the `EmbeddingRetriever` for this purpose and specify a model that we use for the embeddings.
     #
-    retriever = EmbeddingRetriever(document_store=document_store, embedding_model="deepset/sentence_bert", use_gpu=True)
+    retriever = EmbeddingRetriever(document_store=document_store, embedding_model="sentence-transformers/all-MiniLM-L6-v2", use_gpu=True)
 
     # Download a csv containing some FAQ data
     # Here: Some question-answer pairs related to COVID-19
@@ -88,3 +77,7 @@ def tutorial4_faq_style_qa():
 
 if __name__ == "__main__":
     tutorial4_faq_style_qa()
+
+# This Haystack script was made with love by deepset in Berlin, Germany
+# Haystack: https://github.com/deepset-ai/haystack
+# deepset: https://deepset.ai/

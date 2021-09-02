@@ -6,7 +6,12 @@ RUN apt-get update && apt-get install -y curl git pkg-config cmake
 
 # Install PDF converter
 RUN wget --no-check-certificate https://dl.xpdfreader.com/xpdf-tools-linux-4.03.tar.gz && \
-tar -xvf xpdf-tools-linux-4.03.tar.gz && cp xpdf-tools-linux-4.03/bin64/pdftotext /usr/local/bin
+    tar -xvf xpdf-tools-linux-4.03.tar.gz && cp xpdf-tools-linux-4.03/bin64/pdftotext /usr/local/bin
+
+RUN apt-get install libpoppler-cpp-dev pkg-config -y --fix-missing
+
+# Install Tesseract
+RUN apt-get install tesseract-ocr libtesseract-dev poppler-utils -y
 
 # copy code
 COPY haystack /home/user/haystack

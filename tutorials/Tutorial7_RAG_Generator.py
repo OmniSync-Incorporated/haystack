@@ -65,7 +65,7 @@ def tutorial7_rag_generator():
     )
 
     # Delete existing documents in documents store
-    document_store.delete_all_documents()
+    document_store.delete_documents()
     # Write documents to document store
     document_store.write_documents(documents)
     # Add documents embeddings to index
@@ -120,3 +120,7 @@ def tutorial7_rag_generator():
 
 if __name__ == "__main__":
     tutorial7_rag_generator()
+
+# This Haystack script was made with love by deepset in Berlin, Germany
+# Haystack: https://github.com/deepset-ai/haystack
+# deepset: https://deepset.ai/

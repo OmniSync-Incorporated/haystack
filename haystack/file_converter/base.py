@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 import langdetect
 
@@ -14,7 +14,11 @@ class BaseConverter(BaseComponent):
 
     outgoing_edges = 1
 
-    def __init__(self, remove_numeric_tables: bool = False, valid_languages: Optional[List[str]] = None):
+    def __init__(
+        self,
+        remove_numeric_tables: bool = False,
+        valid_languages: Optional[List[str]] = None,
+    ):
         """
         :param remove_numeric_tables: This option uses heuristics to remove numeric rows from the tables.
                                       The tabular structures in documents might be noise for the reader model if it
@@ -29,7 +33,9 @@ class BaseConverter(BaseComponent):
         """
 
         # save init parameters to enable export of component config as YAML
-        self.set_config(remove_numeric_tables=remove_numeric_tables, valid_languages=valid_languages)
+        self.set_config(
+            remove_numeric_tables=remove_numeric_tables, valid_languages=valid_languages
+        )
 
         self.remove_numeric_tables = remove_numeric_tables
         self.valid_languages = valid_languages
@@ -82,16 +88,29 @@ class BaseConverter(BaseComponent):
         else:
             return False
 
-    def run(self, file_path: Path, meta: Optional[Dict[str, str]] = None, remove_numeric_tables: Optional[bool] = None, # type: ignore
-        valid_languages: Optional[List[str]] = None, **kwargs): # type: ignore
-        document = self.convert(
-            file_path=file_path,
-            meta=meta,
-            remove_numeric_tables=remove_numeric_tables,
-            valid_languages=valid_languages,
-        )
+    def run(self, file_paths: Union[Path, List[Path]],  # type: ignore
+            meta: Optional[Union[Dict[str, str], List[Dict[str, str]]]] = None,  # type: ignore
+            remove_numeric_tables: Optional[bool] = None,  # type: ignore
+            valid_languages: Optional[List[str]] = None, **kwargs):  # type: ignore
 
-        result = {"document": document, **kwargs}
+        if isinstance(file_paths, Path):
+            file_paths = [file_paths]
+
+        if meta is None or isinstance(meta, dict):
+            meta = [meta] * len(file_paths)  # type: ignore
+
+        documents: list = []
+        for file_path, file_meta in zip(file_paths, meta):
+            documents.append(
+                self.convert(
+                    file_path=file_path,
+                    meta=file_meta,
+                    remove_numeric_tables=remove_numeric_tables,
+                    valid_languages=valid_languages,
+                )
+            )
+
+        result = {"documents": documents, **kwargs}
         return result, "output_1"
 
 
@@ -99,11 +118,30 @@ class FileTypeClassifier(BaseComponent):
     """
     Route files in an Indexing Pipeline to corresponding file converters.
     """
+
     outgoing_edges = 5
 
-    def run(self, file_path: Path, **kwargs):  # type: ignore
-        output = {"file_path": file_path, **kwargs}
-        ext = file_path.name.split(".")[-1].lower()
+    def _get_files_extension(self, file_paths: list) -> set:
+        """
+        Return the file extensions
+        :param file_paths:
+        :return: set
+        """
+        return {file_path.suffix.lstrip(".") for file_path in file_paths}
+
+    def run(self, file_paths: Union[Path, List[Path]], **kwargs):  # type: ignore
+        """
+        Return the output based on file extension
+        """
+        if isinstance(file_paths, Path):
+            file_paths = [file_paths]
+
+        extension: set = self._get_files_extension(file_paths)
+        if len(extension) > 1:
+            raise ValueError(f"Multiple files types are not allowed at once.")
+
+        output = {"file_paths": file_paths, **kwargs}
+        ext: str = extension.pop()
         try:
             index = ["txt", "pdf", "md", "docx", "html"].index(ext) + 1
             return output, f"output_{index}"
